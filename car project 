@@ -1,0 +1,119 @@
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.model_selection import train_test_split
+from sklearn.compose import ColumnTransformer
+from sklearn.preprocessing import OneHotEncoder
+from sklearn.pipeline import Pipeline
+from sklearn.impute import SimpleImputer
+from sklearn.linear_model import LinearRegression
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+
+df = pd.read_csv("CarPrice_Assignment.csv")
+df.columns = df.columns.str.strip()
+df = df.dropna(subset=["price"])
+
+df["brand"] = df["CarName"].str.split().str[0]
+df["brand"] = df["brand"].str.lower()
+
+features = [
+    "brand", "fueltype", "aspiration", "carbody",
+    "drivewheel", "enginelocation", "wheelbase",
+    "carlength", "carwidth", "curbweight",
+    "enginesize", "horsepower", "citympg", "highwaympg"
+]
+
+X = df[features]
+y = df["price"]
+
+numeric_features = X.select_dtypes(include=np.number).columns.tolist()
+categorical_features = X.select_dtypes(exclude=np.number).columns.tolist()
+
+numeric_process = Pipeline([
+    ("imputer", SimpleImputer(strategy="median"))
+])
+
+categorical_process = Pipeline([
+    ("imputer", SimpleImputer(strategy="most_frequent")),
+    ("encoder", OneHotEncoder(handle_unknown="ignore"))
+])
+
+preprocess = ColumnTransformer([
+    ("num", numeric_process, numeric_features),
+    ("cat", categorical_process, categorical_features)
+])
+
+model = Pipeline([
+    ("preprocess", preprocess),
+    ("regressor", LinearRegression())
+])
+
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42
+)
+
+model.fit(X_train, y_train)
+predictions = model.predict(X_test)
+
+mae = mean_absolute_error(y_test, predictions)
+mse = mean_squared_error(y_test, predictions)
+rmse = np.sqrt(mse)
+r2 = r2_score(y_test, predictions)
+
+print("CAR PRICE PREDICTION")
+print("--------------------")
+print("Total Cars:", len(df))
+print("Training Records:", len(X_train))
+print("Testing Records:", len(X_test))
+print("Mean Absolute Error:", round(mae, 2))
+print("Mean Squared Error:", round(mse, 2))
+print("Root Mean Squared Error:", round(rmse, 2))
+print("R2 Score:", round(r2, 4))
+print("R2 Percentage (not accuracy):", round(r2 * 100, 2), "%")
+
+print("\nActual Price vs Predicted Price")
+for actual, predicted in zip(y_test.iloc[:10], predictions[:10]):
+    print("Actual:", round(actual, 2),
+          "Predicted:", round(predicted, 2))
+
+new_car = pd.DataFrame([{
+    "brand": "toyota",
+    "fueltype": "gas",
+    "aspiration": "std",
+    "carbody": "sedan",
+    "drivewheel": "fwd",
+    "enginelocation": "front",
+    "wheelbase": 100.0,
+    "carlength": 180.0,
+    "carwidth": 66.0,
+    "curbweight": 2500,
+    "enginesize": 130,
+    "horsepower": 110,
+    "citympg": 25,
+    "highwaympg": 30
+}])
+
+predicted_price = model.predict(new_car)[0]
+print("\nPredicted Price for New Car:", round(predicted_price, 2), "USD")
+
+plt.figure(figsize=(8, 5))
+plt.scatter(y_test, predictions)
+plt.plot(
+    [y_test.min(), y_test.max()],
+    [y_test.min(), y_test.max()],
+    linestyle="--"
+)
+plt.xlabel("Actual Car Price")
+plt.ylabel("Predicted Car Price")
+plt.title("Actual vs Predicted Car Prices")
+plt.tight_layout()
+plt.show()
+
+plt.figure(figsize=(8, 5))
+plt.scatter(predictions, y_test - predictions)
+plt.axhline(y=0, linestyle="--")
+plt.xlabel("Predicted Car Price")
+plt.ylabel("Prediction Error")
+plt.title("Car Price Prediction Errors")
+plt.tight_layout()
+plt.show()
